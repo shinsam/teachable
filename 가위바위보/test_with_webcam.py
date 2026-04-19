@@ -1,6 +1,12 @@
 import cv2
 import numpy as np
 from keras.models import load_model
+import os
+from PIL import Image, ImageOps
+
+
+# (중요)소스 파일이 있는 폴더로 작업 디렉토리 자동 변경 (경로 에러 방지)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # 1. 모델과 라벨 읽어오기
 model = load_model('keras_model.h5', compile=False)

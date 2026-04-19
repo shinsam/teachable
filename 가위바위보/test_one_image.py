@@ -1,3 +1,5 @@
+import os
+
 from keras.models import load_model  # TensorFlow is required for Keras to work
 from PIL import Image, ImageOps  # Install pillow instead of PIL
 import numpy as np
@@ -6,6 +8,8 @@ import numpy as np
 # 과학적 표기법을 끄고, 실수 형태로 출력하도록 설정
 np.set_printoptions(suppress=True)
 
+# (중요)소스 파일이 있는 폴더로 작업 디렉토리 자동 변경 (경로 에러 방지)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # Load the model : 소스와 같은 폴더에 있는지 확인하세요
 model = load_model("keras_Model.h5", compile=False)
 

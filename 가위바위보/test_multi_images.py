@@ -21,9 +21,13 @@ data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 # 4. 이미지 폴더 탐색
 # 현재 폴더(.) 내의 파일 중 이미지 확장자만 골라냅니다.
 valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp') #튜플형태로 확장자 정의할 경우
-image_files = [f for f in glob.glob('imgs\\*') if f.lower().endswith(valid_extensions)]
+#image_files = [f for f in glob.glob('imgs\\*') if f.lower().endswith(valid_extensions)]
 # imgs 폴더 내의 파일 중에서 지정된 확장자로 끝나는 파일만 리스트에 저장
 
+image_files = []
+for f in glob.glob("imgs/*"):
+    if f.lower().endswith(valid_extensions):    
+        image_files.append(f)
 
 if not image_files:
     print("폴더에 이미지 파일이 없습니다. 확장자 확인", valid_extensions )
