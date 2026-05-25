@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 가위바위보 피코 연동</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
+        #webcam-container { margin: 20px auto; border: 4px solid #333; width: 200px; height: 200px; }
+        #label-container { font-size: 24px; font-weight: bold; margin-top: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
+        .connect-btn { background-color: #4CAF50; color: white; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>✊✌️🖐️ AI 가위바위보 & 라즈베리 파이 피코 연동</h1>
+    
+    <button type="button" class="connect-btn" onclick="connectPico()">🔌 1단계: 피코 연결하기</button>
+    <button type="button" onclick="init()">📷 2단계: AI 카메라 켜기</button>
+    
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <script type="text/javascript">
+        // ⚠️ 본인의 티쳐블 머신 공유 링크를 입력하세요.
+        const URL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL_ID/";
+
+        let model, webcam, labelContainer, maxPredictions;
+        let port, writer; // 시리얼 통신용 변수
+
+        // [추가] 라즈베리 파이 피코 연결 함수 (Web Serial API)
+        async function connectPico() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                writer = port.writable.getWriter();
+                alert("피코와 성공적으로 연결되었습니다!");
+            } catch (error) {
+                console.error("연결 실패:", error);
+                alert("피코 연결에 실패했습니다. 크롬 브라우저를 사용해 주세요.");
+            }
+        }
+
+        // [추가] 피코로 데이터를 보내는 함수
+        async function sendToPico(data) {
+            if (writer) {
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(data + "\n"));
+            }
+        }
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(200, 200, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        let lastSent = ""; // 중복 전송 방지용 변수
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            let highestClass = "";
+            let highestProbability = 0;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+
+                if(prediction[i].probability > highestProbability) {
+                    highestProbability = prediction[i].probability;
+                    highestClass = prediction[i].className;
+                }
+            }
+
+            // 확률이 85% 이상일 때만 피코로 명령 전송
+            if (highestProbability > 0.85) {
+                if (highestClass === "가위" && lastSent !== "R") {
+                    sendToPico("R"); // 가위 -> Red
+                    lastSent = "R";
+                } else if (highestClass === "바위" && lastSent !== "G") {
+                    sendToPico("G"); // 바위 -> Green
+                    lastSent = "G";
+                } else if (highestClass === "보" && lastSent !== "B") {
+                    sendToPico("B"); // 보 -> Blue
+                    lastSent = "B";
+                }
+            } else if (lastSent !== "O") {
+                sendToPico("O"); // 아무것도 아니면 LED 끄기 (Off)
+                lastSent = "O";
+            }
+        }
+    </script>
+</body>
+</html>

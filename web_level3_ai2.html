@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌸 AI 가위바위보 대결 🌸</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #fff0f5;
+            color: #4a0e17;
+            text-align: center;
+            padding: 30px;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            color: #ff69b4;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+        }
+
+        /* 카운트다운 숫자를 크게 보여줄 스타일 */
+        #countdown-text {
+            font-size: 5rem;
+            font-weight: bold;
+            color: #ff1493;
+            height: 120px;
+            margin-top: 10px;
+            text-shadow: 3px 3px 0px #fff;
+        }
+
+        button {
+            font-size: 2rem;
+            font-weight: bold;
+            padding: 20px 50px;
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 15px rgba(255, 105, 180, 0.3);
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #ff1493;
+            transform: translateY(-3px);
+        }
+
+        button:disabled {
+            background-color: #d3d3d3;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #webcam-container {
+            margin: 20px auto;
+            border: 10px solid #ffb6c1;
+            border-radius: 20px;
+            width: 640px;
+            height: 480px;
+            overflow: hidden;
+            background-color: #fff;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        #webcam-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            transform: scaleX(-1); /* 거울 모드 */
+        }
+
+        /* 스냅샷으로 화면이 멈췄을 때 강조 효과 */
+        .snapshot-active {
+            border: 10px solid #ff1493 !important;
+            animation: flash 0.5s ease-out;
+        }
+
+        @keyframes flash {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        #label-container {
+            margin: 20px auto;
+            max-width: 640px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            border: 3px dashed #ff69b4;
+            min-height: 80px;
+        }
+
+        #label-container div {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ff1493;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🌸 AI 가위바위보 스냅샷 판정 🌸</h1>
+    
+    <button type="button" id="start-cam-btn" onclick="init_camera()">1. 카메라 켜기</button>
+    <button type="button" id="play-btn" onclick="start_countdown()" disabled>2. 가위바위보 하기!</button>
+    
+    <div id="countdown-text">준비 버튼을 눌러주세요</div>
+    
+    <div id="webcam-container"></div>
+    <div id="label-container"><div id="result">결과가 여기에 표시됩니다.</div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <script type="text/javascript">
+        // ⚠️ 선생님의 티쳐블 머신 주소를 입력하세요! 끝에 '/' 필수
+        const URL = "https://teachablemachine.withgoogle.com/models/WiCyoaCIY/"; 
+
+        let model, webcam, maxPredictions;
+        let isRunning = false; 
+
+        // 컴퓨터에게 말을 시키는 함수 (TTS 기능)
+        function speak(text) {
+            if (typeof SpeechSynthesisUtterance === "undefined") return;
+            window.speechSynthesis.cancel(); // 현재 재생중인 소리 중지
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "ko-KR"; // 한국어 설정
+            utterance.rate = 1.2;     // 말하는 속도 살짝 빠르게
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // 1. 카메라 및 AI 모델 초기화
+        async function init_camera() {
+            document.getElementById("start-cam-btn").disabled = true;
+            document.getElementById("countdown-text").innerText = "AI 모델 로딩 중...";
+
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(640, 480, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            document.getElementById("countdown-text").innerText = "준비 완료! 버튼을 누르세요.";
+            document.getElementById("play-btn").disabled = false; // 가위바위보 버튼 활성화
+            
+            isRunning = true;
+            window.requestAnimationFrame(loop);
+        }
+
+        // 실시간 카메라 화면 갱신 루프
+        async function loop() {
+            if (isRunning) {
+                webcam.update(); 
+                window.requestAnimationFrame(loop);
+            }
+        }
+
+        // 2. 카운트다운 시작 함수
+        function start_countdown() {
+            document.getElementById("play-btn").disabled = true;
+            document.getElementById("webcam-container").classList.remove("snapshot-active");
+            document.getElementById("result").innerText = "무엇을 낼지 준비하세요!";
+            
+            // 실시간 루프가 멈춰있었다면 다시 켜기
+            if(!isRunning) {
+                isRunning = true;
+                webcam.play();
+                window.requestAnimationFrame(loop);
+            }
+
+            let count = 3;
+            document.getElementById("countdown-text").innerText = count;
+            speak(count.toString()); // "3" 소리내기
+
+            // 1초 간격으로 카운트다운 진행
+            let timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    document.getElementById("countdown-text").innerText = count;
+                    speak(count.toString()); // "2", "1" 소리내기
+                } else {
+                    clearInterval(timer);
+                    document.getElementById("countdown-text").innerText = "제출!!";
+                    speak("제출"); // "제출" 소리내기
+                    
+                    // 딱 제출 순간에 스냅샷 찍고 판정하기
+                    take_snapshot();
+                }
+            }, 1000);
+        }
+
+        // 3. 특정 순간 멈추고 AI 판정하기
+        async function take_snapshot() {
+            isRunning = false; // 카메라 화면 업데이트 루프를 멈춤 (화면이 스냅샷처럼 고정됨)
+            webcam.pause();    // 웹캠 자체를 일시정지
+            
+            // 시각적 효과 (테두리 번쩍임)
+            document.getElementById("webcam-container").classList.add("snapshot-active");
+
+            // 멈춘 화면(캔버스)을 기준으로 AI 예측 실행
+            const prediction = await model.predict(webcam.canvas);
+            
+            let highestClass = "";
+            let highestProbability = 0;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > highestProbability) {
+                    highestProbability = prediction[i].probability;
+                    highestClass = prediction[i].className;
+                }
+            }
+
+            // 최종 결과 화면에 출력 (확률이 낮으면 판정 불가 처리)
+            const resultDiv = document.getElementById("result");
+            if (highestProbability > 0.7) {
+                const percent = (highestProbability * 100).toFixed(0);
+                resultDiv.innerHTML = `🧐 판정 결과: [${highestClass}] (${percent}% 일치)`;
+                speak(`결과는 ${highestClass} 입니다.`);
+            } else {
+                resultDiv.innerHTML = "❓ 음.. 잘 모르겠어요! 다시 시도해 주세요.";
+                speak("다시 시도해 주세요.");
+            }
+
+            // 3초 후에 다시 준비 버튼 활성화하기
+            setTimeout(() => {
+                document.getElementById("play-btn").disabled = false;
+                document.getElementById("countdown-text").innerText = "다시 하려면 버튼을 누르세요!";
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
